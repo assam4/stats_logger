@@ -17,29 +17,27 @@
  *           concurrently, aggregating results into a sorted output vector.
  */
 
-static constexpr std::string_view   level_header = "receive_ts;exchange_ts;price;quantity;side;rebuild";
-static constexpr std::string_view   trade_header = "receive_ts;exchange_ts;price;quantity;side";
 
-template <typename Data, typename Func>
-requires requires(Func f, std::string s) {
-        {   f(s) } -> std::same_as<std::vector<Data>>;}
+template <typename Data, typename ParserFunc, typename  ChunkGetterFunc>
+requires requires(ParserFunc f1, ChunkGetterFunc f2, std::string s) {
+    { f1(s) } -> std::same_as<std::vector<Data>>;
+    { f2(s) } -> std::same_as<std::expected<std::vector<std::string>, bool>>;
+}
 class ConcurrentLogParser {
     public:
-        ConcurrentLogParser(size_t n, Func& func) {
+        ConcurrentLogParser(size_t n, ParserFunc f1, ChunkGetterFunc f2) {
             workers.reserve(n);
             for (size_t i = 0; i < n; ++i)
-                workers.emplace_back([this, func](std::stop_token st){worker_loop(st, func);});
+                workers.emplace_back([this, f1](std::stop_token st){worker_loop(st, f1);});
+            chunk_getter = f2;
         }
+
         ~ConcurrentLogParser() = default;
         ConcurrentLogParser(const ConcurrentLogParser &) = delete;
         ConcurrentLogParser &operator=(const ConcurrentLogParser &) = delete;
+
         std::expected<std::vector<Data>, bool>    collect(std::vector<std::string> files) {
-            spdlog::info(std::format("Input files: "));
-            for (const auto& file: files) {
-                auto file_size = std::filesystem::file_size(file);
-                spdlog::info(std::format("  {} ({} bytes)", file, file_size));
-                getTasks(file);
-            }
+            taskGenerate(files);
             while (true) {
                 {
                     std::lock_guard<std::mutex> lock(tasks_mutex);
@@ -53,43 +51,34 @@ class ConcurrentLogParser {
             cv.notify_all();
             workers.clear();
             if (shared_data.empty()) {
-                spdlog::error("No data was parsed from input files");
+                spdlog::error("data doesn't parsed from input files");
                 return std::unexpected<bool>(false);
             }
             std::sort(shared_data.begin(), shared_data.end());
             spdlog::info(std::format("Parsing finished: parsed {} lines", std::to_string(shared_data.size())));
             return shared_data;
         }
-    private:  
-        void    getTasks(const std::string& file) {
-            std::ifstream is(file);
-            if (!is.is_open()) {
-                spdlog::warn(std::format("Failed to open: {}", file));
-                return ;
-            }
-            std::string header;
-            std::getline(is, header);
-            if (header != level_header && header != trade_header) {
-                spdlog::warn(std::format("Invalid CSV header in file '{}': '{}'\n", file , header));
-                return ;
-            }
-            char    buffer[4096];
-            while (is.read(buffer, 4096) || is.gcount() > 0) {
-                std::string result;
-                if (is.gcount() == 4096 && buffer[is.gcount() - 1] != '\n') {
-                    std::string helper;
-                    auto    rd = is.gcount();
-                    std::getline(is, helper);
-                    result = std::string(buffer, rd) + helper;
-                }
-                else
-                    result = std::string(buffer, is.gcount());
-                std::lock_guard<std::mutex>  lock(tasks_mutex);
-                tasks.emplace(std::move(result));
-                cv.notify_one();
-            }
+        
+    private:
+        void    taskGenerate(std::vector<std::string>& files) {
+            spdlog::info("Input files: ");
+            std::for_each(files.begin(), files.end(), [&](const auto& file)  {
+                spdlog::info(std::format("  {} ({} bytes)", file, std::filesystem::file_size(file)));
+                getTasks(file);
+            });
         }
-        void    worker_loop(std::stop_token st, Func& func) {
+
+        void    getTasks(const std::string& file) {
+            auto result = chunk_getter(file);
+            if (result)
+                for (auto& chunk: result.value()) {
+                    std::lock_guard<std::mutex>  lock(tasks_mutex);
+                    tasks.emplace(std::move(chunk));
+                    cv.notify_one();
+                }
+        }
+
+        void    worker_loop(std::stop_token st, ParserFunc func) {
             while (!st.stop_requested()) {
                 std::unique_lock<std::mutex> lock(tasks_mutex);
                 cv.wait(lock, [this, &st] { return !tasks.empty() || st.stop_requested();});
@@ -107,6 +96,7 @@ class ConcurrentLogParser {
                 }
             }
         }
+
     private:
         std::queue<std::string> tasks;
         std::vector<Data> shared_data;
@@ -114,4 +104,5 @@ class ConcurrentLogParser {
         std::mutex shared_data_mutex;
         std::mutex tasks_mutex;
         std::condition_variable cv;
+        ChunkGetterFunc *chunk_getter;
 };

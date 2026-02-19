@@ -3,6 +3,8 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <expected>
+
 
 /**
  *  @struct  data
@@ -14,8 +16,8 @@
 struct data{
     uint64_t    receive_ts;
     uint64_t    exchange_ts;
-    double  price;
-    double  quantity;
+    double      price;
+    double      quantity;
     std::string side;
     int rebuild = 0;
     [[nodiscard]] bool  operator<(const data& oth) const noexcept { return receive_ts < oth.receive_ts;}
@@ -44,3 +46,5 @@ class Parser_csv {
         static int  get_rebuild(const std::string&, size_t&);
 };
 
+
+std::expected<std::vector<std::string>, bool> get_chunks(const std::string&);

@@ -2,9 +2,9 @@
 #include <spdlog/spdlog.h>
 #include <format>
 #include <toml++/toml.hpp>
-#include "config_loader.hpp"
+#include "toml_config_parser.hpp"
 
-std::pair<std::vector<std::string>, std::string>  ConfigLoader::getPaths(const std::string& path) {
+std::pair<std::vector<std::string>, std::string>  TomlConfigLoader::getPaths(const std::string& path) {
     auto config = toml::parse_file(path);
     auto main_table = config["main"].as_table();
     if (!main_table || !main_table->contains("input"))
@@ -17,7 +17,7 @@ std::pair<std::vector<std::string>, std::string>  ConfigLoader::getPaths(const s
     return {input, output};
 }
 
-std::vector<std::string>    ConfigLoader::getInput(const std::string& dir, const std::vector<std::string>& masks) {
+std::vector<std::string>    TomlConfigLoader::getInput(const std::string& dir, const std::vector<std::string>& masks) {
     std::vector<std::string>    input_files;
     if (!std::filesystem::exists(dir) || !std::filesystem::is_directory(dir))
         throw std::runtime_error(std::format("Invalid input directory path: {}", dir));
@@ -43,7 +43,7 @@ std::vector<std::string>    ConfigLoader::getInput(const std::string& dir, const
     return input_files;
 }
 
-std::string ConfigLoader::getOutput(const std::string& dir) {
+std::string TomlConfigLoader::getOutput(const std::string& dir) {
     std::string output_dir = dir;
     if (output_dir.empty()) {
         output_dir = "./output";
@@ -58,7 +58,7 @@ std::string ConfigLoader::getOutput(const std::string& dir) {
     return output_dir;
 }
 
-std::vector<std::string> ConfigLoader::getMasks(const std::string& config_path) {
+std::vector<std::string> TomlConfigLoader::getMasks(const std::string& config_path) {
     auto    config = toml::parse_file(config_path);
     auto    main_table = config["main"].as_table();
     if (!main_table || !main_table->contains("filename_mask"))

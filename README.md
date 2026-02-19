@@ -24,13 +24,13 @@ csv_median_calculator/
 ├── README.md                   # This file
 ├── include/                    # Header files
 │   ├── concurrent_log_parser.hpp    # Thread pool implementation
-│   ├── config_loader.hpp            # Configuration file handling
+│   ├── toml_config_parser.hpp       # Configuration file handling
 │   ├── logger.hpp                   # Statistics logger
-│   └── parser_csv.hpp               # CSV parsing utilities
+│   └── parser_csv.hpp           # CSV parsing utilities
 ├── src/                        # Implementation files
 │   ├── main.cpp                     # Application entry point
 │   ├── concurrent_log_parser.cpp    # Thread pool implementation
-│   ├── config_loader.cpp            # Config file parser
+│   ├── toml_config_parser.cpp       # Config file parser
 │   ├── logger.cpp                   # Statistics logger
 │   └── parser_csv.cpp               # CSV parser implementation
 └── examples/                   # Example files

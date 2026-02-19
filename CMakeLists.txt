@@ -30,7 +30,7 @@ endif()
 
 add_executable(${PROJECT_NAME}
     src/main.cpp
-    src/config_loader.cpp
+    src/toml_config_parser.cpp
     src/logger.cpp
     src/parser_csv.cpp
 )

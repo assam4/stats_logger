@@ -1,9 +1,13 @@
 #include <sstream>
+#include <fstream>
 #include <algorithm>
 #include <exception>
 #include <format>
 #include <spdlog/spdlog.h>
 #include "parser_csv.hpp"
+
+static constexpr std::string_view   level_header = "receive_ts;exchange_ts;price;quantity;side;rebuild";
+static constexpr std::string_view   trade_header = "receive_ts;exchange_ts;price;quantity;side";
 
 size_t  Parser_csv::get_endIndex(const std::string &line, size_t start) {
     auto end = line.find_first_of(";", start);
@@ -71,4 +75,33 @@ std::vector<data>   Parser_csv::parse(const std::string& input) {
     }
     std::sort(logs.begin(), logs.end());
     return logs;
+}
+
+std::expected<std::vector<std::string>, bool> get_chunks(const std::string& file) {
+    std::ifstream is(file);
+            if (!is.is_open()) {
+                spdlog::warn(std::format("Failed to open: {}", file));
+                return std::unexpected<bool>(false);;
+            }
+    std::vector<std::string> chunks;
+    std::string header;
+    std::getline(is, header);
+    if (header != level_header && header != trade_header) {
+        spdlog::warn(std::format("Invalid CSV header in file '{}': '{}'\n", file , header));
+        return std::unexpected<bool>(false);;
+    }
+    char    buffer[4096];
+    while (is.read(buffer, 4096) || is.gcount() > 0) {
+        std::string result;
+        if (is.gcount() == 4096 && buffer[is.gcount() - 1] != '\n') {
+            std::string helper;
+            auto    rd = is.gcount();
+            std::getline(is, helper);
+            result = std::string(buffer, rd) + helper;
+        }
+        else
+            result = std::string(buffer, is.gcount());
+        chunks.push_back(result);
+    }
+    return chunks;
 }
