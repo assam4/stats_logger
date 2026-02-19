@@ -58,7 +58,7 @@ Thread pool for concurrent processing:
 - Thread-safe data aggregation using mutexes
 - Templated design for flexible parsing functions
 
-#### 3. **ConfigLoader**
+#### 3. **TomlConfigLoader**
 Manages configuration from TOML files:
 - Input/output directory paths
 - Filename filtering patterns
